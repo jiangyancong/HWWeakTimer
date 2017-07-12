@@ -32,11 +32,20 @@
 
 @implementation HWWeakTimerTarget
 
+static NSRunLoopMode HWeakTimerRunLoopMode;
+
++ (void)load
+{
+    [super load];
+    
+    HWeakTimerRunLoopMode = NSDefaultRunLoopMode;
+}
+
 - (void) fire:(NSTimer *)timer {
     if(self.target) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-        [self.target performSelector:self.selector withObject:timer.userInfo afterDelay:0.0f inModes:@[NSRunLoopCommonModes]];
+        [self.target performSelector:self.selector withObject:timer.userInfo afterDelay:0.0f inModes:@[HWeakTimerRunLoopMode]];
 #pragma clang diagnostic pop
     } else {
         [self.timer invalidate];
@@ -47,11 +56,47 @@
 
 @implementation HWWeakTimer
 
-+ (NSTimer *) scheduledTimerWithTimeInterval:(NSTimeInterval)interval
-                                      target:(id)aTarget
-                                    selector:(SEL)aSelector
-                                    userInfo:(id)userInfo
-                                     repeats:(BOOL)repeats {
++ (NSTimer *)scheduledTimerWithTimeInterval:(NSTimeInterval)interval
+                                     target:(id)aTarget
+                                   selector:(SEL)aSelector
+                                   userInfo:(id)userInfo
+                                    repeats:(BOOL)repeats {
+    return [self scheduledTimerWithTimeInterval:interval target:aTarget selector:aSelector userInfo:userInfo repeats:repeats inMode:NSDefaultRunLoopMode];
+}
++ (NSTimer *)scheduledTimerWithTimeInterval:(NSTimeInterval)interval
+                                      block:(HWTimerHandler)block
+                                   userInfo:(id)userInfo
+                                    repeats:(BOOL)repeats {
+    return [self scheduledTimerWithTimeInterval:interval block:block userInfo:userInfo repeats:repeats inMode:NSDefaultRunLoopMode];
+}
+
+
++ (NSTimer *)scheduledTimerWithTimeInterval:(NSTimeInterval)interval
+                                      block:(HWTimerHandler)block
+                                   userInfo:(id)userInfo
+                                    repeats:(BOOL)repeats
+                                     inMode:(NSRunLoopMode)mode {
+    NSMutableArray *userInfoArray = [NSMutableArray arrayWithObject:[block copy]];
+    if (userInfo != nil) {
+        [userInfoArray addObject:userInfo];
+    }
+    return [self scheduledTimerWithTimeInterval:interval
+                                         target:self
+                                       selector:@selector(_timerBlockInvoke:)
+                                       userInfo:[userInfoArray copy]
+                                        repeats:repeats
+                                         inMode:mode];
+}
+
+
++ (NSTimer *)scheduledTimerWithTimeInterval:(NSTimeInterval)interval
+                                     target:(id)aTarget
+                                   selector:(SEL)aSelector
+                                   userInfo:(id)userInfo
+                                    repeats:(BOOL)repeats
+                                     inMode:(NSRunLoopMode)mode {
+    HWeakTimerRunLoopMode = mode;
+    
     HWWeakTimerTarget* timerTarget = [[HWWeakTimerTarget alloc] init];
     timerTarget.target = aTarget;
     timerTarget.selector = aSelector;
@@ -61,25 +106,10 @@
                                            selector:@selector(fire:)
                                            userInfo:userInfo
                                             repeats:repeats];
-
-    [[NSRunLoop currentRunLoop] addTimer:timer forMode:NSRunLoopCommonModes];
+    
+    [[NSRunLoop currentRunLoop] addTimer:timer forMode:HWeakTimerRunLoopMode];
     timerTarget.timer = timer;
     return timerTarget.timer;
-}
-
-+ (NSTimer *)scheduledTimerWithTimeInterval:(NSTimeInterval)interval
-                                      block:(HWTimerHandler)block
-                                   userInfo:(id)userInfo
-                                    repeats:(BOOL)repeats {
-    NSMutableArray *userInfoArray = [NSMutableArray arrayWithObject:[block copy]];
-    if (userInfo != nil) {
-        [userInfoArray addObject:userInfo];
-    }
-    return [self scheduledTimerWithTimeInterval:interval
-                                         target:self
-                                       selector:@selector(_timerBlockInvoke:)
-                                       userInfo:[userInfoArray copy]
-                                        repeats:repeats];
 }
 
 + (void)_timerBlockInvoke:(NSArray*)userInfo {
