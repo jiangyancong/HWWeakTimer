@@ -37,4 +37,16 @@ typedef void (^HWTimerHandler)(id userInfo);
                                    userInfo:(id)userInfo
                                     repeats:(BOOL)repeats;
 
++ (NSTimer *)scheduledTimerWithTimeInterval:(NSTimeInterval)interval
+                                      block:(HWTimerHandler)block
+                                   userInfo:(id)userInfo
+                                    repeats:(BOOL)repeats
+                                     inMode:(NSRunLoopMode)mode;
+
++ (NSTimer *)scheduledTimerWithTimeInterval:(NSTimeInterval)interval
+                                     target:(id)aTarget
+                                   selector:(SEL)aSelector
+                                   userInfo:(id)userInfo
+                                    repeats:(BOOL)repeats
+                                     inMode:(NSRunLoopMode)mode;
 @end
